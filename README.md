@@ -2,7 +2,7 @@
 
 ## Overview
 
-- CodeBuildでキャッシュ機能を有効にした場合の検証デモ
+- CodeBuildでキャッシュを使った場合の挙動を検証するためのデモ
 - Deployすることで、以下のCodeBuildが作成される
   - \<codebuild-caching-demo>-no-cache : キャッシュをしないCodeBuild
   - \<codebuild-caching-demo>-s3-cache : S3にキャッシュするCodeBuild（キャッシュ対象は `~/.ivy2`、`~/.cache`、`~/.sbt`）
