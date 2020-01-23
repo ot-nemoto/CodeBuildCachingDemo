@@ -1,0 +1,117 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+Parameters:
+  Name:
+    Type: String
+    Default: codebuild-caching-demo
+  GitHubRepository:
+    Type: String
+    Default: https://github.com/nemodija/hello-scala-world-by-playframework.git
+
+Resources:
+  NoCacheCodeBuild:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: !Sub ${Name}-no-cache
+      ServiceRole: !GetAtt CodeBuildServiceRole.Arn
+      Artifacts:
+        Type: NO_ARTIFACTS
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/standard:2.0
+        PrivilegedMode: true
+      Source:
+        Type: GITHUB
+        Location: !Ref GitHubRepository
+        BuildSpec: !Sub |
+          version: 0.2
+          phases:
+            install:
+              runtime-versions:
+                java: openjdk8
+            pre_build:
+              commands:
+              - (cd; pwd; ls -la)
+              - sbt about
+              - (cd; pwd; ls -la)
+      TimeoutInMinutes: 60
+    DependsOn:
+    - CodeBuildManagedPolicy
+  S3CacheCodeBuild:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: !Sub ${Name}-s3-cache
+      ServiceRole: !GetAtt CodeBuildServiceRole.Arn
+      Artifacts:
+        Type: NO_ARTIFACTS
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/standard:2.0
+        PrivilegedMode: true
+      Source:
+        Type: GITHUB
+        Location: !Ref GitHubRepository
+        BuildSpec: !Sub |
+          version: 0.2
+          phases:
+            install:
+              runtime-versions:
+                java: openjdk8
+            pre_build:
+              commands:
+              - (cd; pwd; ls -la)
+              - sbt about
+              - (cd; pwd; ls -la)
+          cache:
+            paths:
+            - '/root/.cache/**/*'
+            - '/root/.ivy2/**/*'
+            - '/root/.sbt/**/*'
+      Cache:
+        Type: S3
+        Location: !Ref CacheBucket
+        Modes:
+        - LOCAL_CUSTOM_CACHE
+      TimeoutInMinutes: 60
+    DependsOn:
+    - CodeBuildManagedPolicy
+  CodeBuildServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - codebuild.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Path: /service-role/
+  CodeBuildManagedPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Roles:
+      - !Ref CodeBuildServiceRole
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+        - Effect: Allow
+          Action:
+          - logs:CreateLogGroup
+          - logs:CreateLogStream
+          - logs:PutLogEvents
+          Resource:
+          - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/${Name}-no-cache"
+          - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/${Name}-no-cache:*"
+          - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/${Name}-s3-cache"
+          - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/${Name}-s3-cache:*"
+        - Effect: Allow
+          Action:
+          - "s3:*"
+          Resource:
+          - "*"
+  CacheBucket:
+    Type: AWS::S3::Bucket
